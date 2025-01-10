@@ -166,8 +166,10 @@ class GenlogisticGen(LmomDistrMixin, scipy.stats.rv_continuous):
         return k == k
 
     def _cdf(self, x, k):
-        u = np.where(k == 0, np.exp(-x), (1.0 - k * x) ** (1.0 / k))
-        return 1.0 / (1.0 + u)
+        with np.errstate(divide="ignore", invalid="ignore"):  # TODO: 移除warning
+            u = np.where(k == 0, np.exp(-x), (1.0 - k * x) ** (1.0 / k))
+            cdf = 1.0 / (1.0 + u)
+        return cdf
 
     def _pdf(self, x, k):
         u = np.where(k == 0, np.exp(-x), (1.0 - k * x) ** (1.0 / k))

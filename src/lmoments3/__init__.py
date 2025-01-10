@@ -184,7 +184,8 @@ def _samlmusmall(x, nmom=5):
             for i in range(n)
         ]
     )
-    l3 = coefl3 * sum_xtrans / l2
+    with np.errstate(divide="ignore", invalid="ignore"): # TODO: 不警告除以0的情况，避免nan的提示 (是不是应该在xarray一开始就剔除nan?)
+        l3 = coefl3 * sum_xtrans / l2
 
     if nmom == 3:
         return [l1, l2, l3]
