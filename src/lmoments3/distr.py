@@ -1428,6 +1428,101 @@ class GenextremeGen(LmomDistrMixin, scipy.stats._continuous_distns.genextreme_ge
 gev = GenextremeGen(name="genextreme", shapes="c")
 
 
+class FiskGen(LmomDistrMixin, scipy.stats._continuous_distns.fisk_gen):
+    """Fisk distribution with the PWMs method."""
+
+    def _sampwm(self, data, nr_order, plotting_position=0.35):
+        """
+        Calculate sample Probability Weighted Moments (PWMs).
+        
+        Parameters:
+            data (array-like): The dataset for which to calculate PWMs.
+            nr_order (int): Maximum order of PWMs to calculate.
+            plotting_position (float): Adjustment factor for plotting positions (default=0.35).
+        
+        Returns:
+            dict: A dictionary where keys are r-values and values are the corresponding PWMs.
+        """
+        # Sort the data in ascending order
+        data_sorted = np.sort(data)
+        n = len(data_sorted)  # Sample size
+        
+        # Calculate plotting positions
+        positions = (np.arange(1, n + 1) - plotting_position) / n
+
+        # Calculate PWMs
+        pwms = []
+        for r in range(nr_order + 1):
+            pwm = np.mean(data_sorted * (1 - positions) ** r)
+            pwms.append(pwm)
+
+        return pwms
+    
+
+    def _pwm_fit(self, pwms):
+        """
+        Fit the fisk distribution to the given PWMs.
+
+        Args:
+            pwms (array-like): PWMs to use in calculating the distribution parameters.
+
+        Raises:
+            ValueError: If the PWMs are invalid.
+
+        Returns:
+            params (OrderedDict): Distribution parameters in `scipy` order, i.e. shape, loc, scale.
+
+        References:
+            https://climatedataguide.ucar.edu/climate-data/standardized-precipitation-evapotranspiration-index-spei
+            M.I. Ahmad, C.D. Sinclair, A. Werritty, Log-logistic flood frequency analysis.
+            (https://doi.org/10.1016/0022-1694(88)90015-7)
+        """        
+        M0, M1, M2 = pwms[:3]
+        with np.errstate(divide="ignore", invalid="ignore"):
+            c = (2*M1-M0)/(6*M1-M0-6*M2)
+            scale = (M0-2*M1)*c/special.gamma(1+1/c)/special.gamma(1-1/c)
+            loc = M0 - scale*special.gamma(1+1/c)*special.gamma(1-1/c)
+
+        if c <= 0 or scale <= 0:
+            raise ValueError("Invalid Parameters")
+
+        para = OrderedDict(
+            [
+                ("c", c),
+                ("loc", loc),
+                ("scale", scale),
+            ]
+        )
+        return para
+
+
+    def lmom_fit(self, data=[], pwms=[]):
+        """Fit the distribution function to the given data or given L-moments.
+
+        :param data: Data to use in calculating the distribution parameters
+        :type data: array_like
+        :param pwms: PWMs to use in calculating the distribution parameters
+        :type pwms: array_like
+        :returns: Distribution parameters in `scipy` order, e.g. scale, loc, shape
+        :rtype: :class:`OrderedDict`
+        """
+        n_min = self.numargs + 2
+        if len(data) > 0:
+            if len(data) <= n_min:
+                raise ValueError(f"At least {n_min} data points must be provided.")
+            pwms = self._sampwm(data, nr_order=n_min)
+            #lm.lmom_ratios(data, nmom=n_min)  
+        elif not pwms:
+            raise Exception("Either `data` or `lmom_ratios` must be provided.")
+        elif len(pwms) < n_min:
+            raise ValueError(f"At least {n_min} number of L-moments must be provided.")
+
+        return self._pwm_fit(pwms=pwms)
+
+
+fisk = FiskGen(name="fisk", shapes="c")
+
+
 class GumbelGen(LmomDistrMixin, scipy.stats._continuous_distns.gumbel_r_gen):
     """Gumbel distribution with L-moment methods."""
 
