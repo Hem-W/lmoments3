@@ -1461,6 +1461,35 @@ class FiskGen(LmomDistrMixin, scipy.stats._continuous_distns.fisk_gen):
         return pwms
     
 
+    def _sampwm_unbiased(self, data, nr_order):
+        """
+        Calculate unbiased sample Probability Weighted Moments (PWMs).
+        
+        Parameters:
+            data (array-like): The dataset for which to calculate PWMs.
+            nr_order (int): Maximum order of PWMs to calculate.
+        
+        Returns:
+            dict: A dictionary where keys are r-values and values are the corresponding PWMs.
+        """
+        samples_sorted = np.sort(data)  # 升序排序
+        n = len(samples_sorted)
+        
+        # 初始化权重数组
+        weights = np.ones(n)  # 初始权重为全 1，对应 0 阶
+        
+        # 初始化 PWMs 的结果数组 
+        pwms = np.zeros(nr_order + 1)
+        pwms[0] = np.mean(samples_sorted)  # 0 阶权重矩的计算
+        
+        # 递推计算高阶权重和 PWMs
+        for r in range(1, nr_order + 1):
+            weights *= (n - np.arange(1, n + 1) - r + 1) / (n - r)
+            pwms[r] = np.sum(samples_sorted * weights) / n
+        
+        return pwms
+    
+
     def _pwm_fit(self, pwms):
         """
         Fit the fisk distribution to the given PWMs.
@@ -1498,7 +1527,7 @@ class FiskGen(LmomDistrMixin, scipy.stats._continuous_distns.fisk_gen):
         return para
 
 
-    def lmom_fit(self, data=[], pwms=[]):
+    def lmom_fit(self, data=[], pwms=[], unbiased=False):
         """Fit the distribution function to the given data or given L-moments.
 
         :param data: Data to use in calculating the distribution parameters
@@ -1512,7 +1541,10 @@ class FiskGen(LmomDistrMixin, scipy.stats._continuous_distns.fisk_gen):
         if len(data) > 0:
             if len(data) <= n_min:
                 raise ValueError(f"At least {n_min} data points must be provided.")
-            pwms = self._sampwm(data, nr_order=n_min)
+            if unbiased:
+                pwms = self._sampwm_unbiased(data, nr_order=n_min)
+            else:
+                pwms = self._sampwm(data, nr_order=n_min)
             #lm.lmom_ratios(data, nmom=n_min)  
         elif not pwms:
             raise Exception("Either `data` or `lmom_ratios` must be provided.")
